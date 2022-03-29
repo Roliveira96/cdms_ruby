@@ -1,0 +1,363 @@
+Anotações
+
+Primeiramente iremos criar um diretório para esse projeto, no nosso camos ficou como cdms.
+
+$ mkdir cdms
+
+Depois iremos acessar esse diretório e criar um arquivo chamado Dockerfile
+
+$ nano Dockerfile
+
+Com o seu arquivo pronto, conforme o exemplo do professor, basta execultar o comando
+
+$ docker build --build-arg USER_ID=$(id -u) --build-arg GROUP_ID$(id -g) .
+
+A instalação ira demorar alguns instantes, nada muito demorado. Após a instalação iremos definir
+o nosso docker-composer, para isso iremos execultar o seguinte comando:
+
+$ nano docker-compose.yml 
+
+E editar conforme exemplo do professor;
+
+O proximo passso é voltar para o terminal e execultar o seguinte comando:
+
+$ docker-composer ps 
+
+Para subir a imagem
+
+$ docker-compose up -d web
+
+o -d serve para monitorar os logs
+ 
+
+Após isso vamos execultar o seguinte comando para baixar as nossas dependecias 
+
+$ docker-compose run web rails new . --force --database=postgresql
+
+
+Depois de execultar esse comando vai ser preciso inserir alguns parametros dentro do arquivo
+database.yml, que está dentro da pasta config
+
+  host: db
+  username: postgres
+  password: postgres
+
+Execulte o comando:
+
+$ docker-compose run web bundle exec rails db:create
+$ docker-compose up -d web
+
+ou
+
+$ dc up -d web --> Usando alias para incurtar os comandos.
+
+Depois da aplicação funcionando iremos criar um branch novo para brincar um pouco, sabemos
+que essa branch não irá para o github.
+
+$ git checkout -b scaffold
+
+Com a nova branch criada, vamos algumas paginas novas, para praticar
+
+$ dc exec web rails g scaffold posts title:string text:text
+
+Para acessar o banco de dados.
+
+$ dc exec db bash
+
+agora dentro da vm da docker
+
+$ psql --user postgres 
+
+dica altgr "+" - faz o comando "\" 
+
+Para conferir os bancos criados  realizamos o seguinte comando
+
+$ \l
+
+exemplo:  
+postgres=# \l
+                                    List of databases
+       Name       |  Owner   | Encoding |  Collate   |   Ctype    |   Access privileges   
+------------------+----------+----------+------------+------------+-----------------------
+ cdms_development | postgres | UTF8     | en_US.utf8 | en_US.utf8 | 
+ cdms_test        | postgres | UTF8     | en_US.utf8 | en_US.utf8 | 
+ postgres         | postgres | UTF8     | en_US.utf8 | en_US.utf8 | 
+ template0        | postgres | UTF8     | en_US.utf8 | en_US.utf8 | =c/postgres          +
+                  |          |          |            |            | postgres=CTc/postgres
+ template1        | postgres | UTF8     | en_US.utf8 | en_US.utf8 | =c/postgres          +
+                  |          |          |            |            | postgres=CTc/postgres
+
+https://i.imgur.com/XDD61tk.png
+
+Para acessar uma base de dados usamos o comando
+
+$ \c cdms_development
+
+para listar as tabelas usamos o seguinte comando
+
+$ \d
+
+Como não existe nenhuma tabela até o momento iremos execultar o comando  dentro do terminal
+
+$ dc exec web rails db:migrate
+
+Agora se execultamos o comando \d dentro da docker do banco ele listarás as tables.
+
+configra
+
+$ \d
+
+postgres=# \c cdms_development 
+You are now connected to database "cdms_development" as user "postgres".
+cdms_development=# \d
+Did not find any relations.
+cdms_development=# \d
+                  List of relations
+ Schema |         Name         |   Type   |  Owner   
+--------+----------------------+----------+----------
+ public | ar_internal_metadata | table    | postgres
+ public | posts                | table    | postgres
+ public | posts_id_seq         | sequence | postgres
+ public | schema_migrations    | table    | postgres
+(4 rows)
+
+Agora já está disponível a pagina no localhost para incluir posts
+confira acessando o http://localhost:3000/posts
+
+https://i.imgur.com/Zi88d3p.png
+
+Porém podemos conferir que não existe nenhum tipo de validação da pagina posts, permitindo
+incluir posts vazios, para resolver isso vamos acesar dentro do projeto a pasta
+
+app/models/post.rb
+
+Percebe que com apenas poucas linhas conseguimos validar várias informações 
+
+class Post < ApplicationRecord
+    validates :title, presence: true
+    validates :text, presence: true
+end
+
+https://i.imgur.com/umRcmMd.png
+
+Vamos dar uma melhorada no código, agora iremos incluir um campo de comentários 
+nos posts, para isso vamos realizar o seguinte comando
+
+$ dc exec web rails g scaffold comments post:references comment:text
+
+https://i.imgur.com/HYY6Q4Q.png
+
+e  rodamos o comando para execultar as migrate
+
+$ dc exec web rails db:migrate
+
+https://i.imgur.com/HZRS45W.png
+
+Caso queria conferir no banco as novas tables fica a vontada, para isso basta usar \d
+
+https://i.imgur.com/QsiHe8Z.png
+
+
+Perceba que nesse momento a sua pagina de comentário já está funcionando
+
+confira http://localhost:3000/comments
+
+https://i.imgur.com/5QgcrAw.png
+
+Mas ainda não está funcionando conforme queremos, ou seja, seria interessante os novos comentários
+sejam exebidos dentro do post.
+
+Para resolver isso iremos precisar no nosso código.
+
+Perceba que ao acesssar o comment.rb dentro de models, ele está referenciando que pertece
+ao posts.
+
+https://i.imgur.com/hUNrAEy.png
+
+Para que funcione corretamente vamos precisar fazer o mesmo no post, que está em models post.rb
+
+https://i.imgur.com/VGI657M.png
+
+Adicionando a linha: has_many :comments
+
+Perceba que na pasta db dentro de migrate os arquivos foram editadoas referenciando o post
+ao comments
+
+https://i.imgur.com/VNJve5D.png
+
+Agora iremos modificar as nossas views
+
+navegamos até o arquivo app/views/posts/show.html.erb
+
+https://i.imgur.com/buvJSUq.png
+
+Vamos modificar o arquivos para que seja listado todos os comentários.
+
+Adicionamos o trecho de código detro  do show.html.erb
+
+<ul>
+  <%= render @post.comments %>
+</ul>
+
+E em seguida vamos precisar criar um novo arquivo dentro do dir comments das views
+
+_comments.html.erb
+
+Com a seguinte extrutura:
+<li>
+<%= comment.comment %>
+</li>
+
+Isso fará que o seja exebida uma listagem de comentários
+
+confira: 
+
+https://i.imgur.com/h7T81t9.png
+
+
+Porém ao deletar um post, percebemos que ocorre um erro.
+
+Veja: 
+
+https://i.imgur.com/Y2xXJ32.png
+
+Parra resolver isso vamos precisar editar o arquivo
+
+modeels/post.rb
+
+class Post < ApplicationRecord
+    has_many :comments, dependent: :destroy
+    validates :title, presence: true
+    validates :text, presence: true
+end
+
+https://i.imgur.com/BV5CPoJ.png
+
+Finalizando essa parte, perceba que já está tudo funcionando, porém ainda não está 
+intuitivo a funcionalidade de pois quando quereos adicionar um novo comentário teremos
+quer ir para outra página, para resolver esse pequeno problema iremos adicionar esse campo de 
+comentário dentro do post.
+
+Adicionanamos o forma do comments dentro do post
+
+<%= render 'comments/form' %>
+
+Vamos também precisar alterar a forma que a rota trabalha.
+
+dentro de config no arquivo route.rb
+
+
+Perceba que a rota está separado para o crud do post e dos comentário
+
+Rails.application.routes.draw do
+  resources :comments
+  resources :posts
+  # For details on the DSL available within this file, see https://guides.rubyonrails.org/routing.html
+end
+
+perceba as modificações realizadas, para que a rota do post agora está atrelado ao comentário:
+
+Rails.application.routes.draw do
+  resources :posts do
+   resources :comments, only: :create
+  end
+  # For details on the DSL available within this file, see https://guides.rubyonrails.org/routing.html
+end
+
+Em seguida vamos precisar ajustar o nosso controller app/controllers/comments_controller.rb, vamos
+remover todas as partes relacionada a edit,new, show e index.
+
+Trecho removido:
+
+https://i.imgur.com/APr9fby.png
+
+https://i.imgur.com/HE0yxgS.png
+
+https://i.imgur.com/xdVknYZ.png
+
+Agora iremos modificar um pouco o metodo create
+
+$ dc exec web rails routes
+
+Confira todas as rotas presente em seu projeto
+
+confira agora as modificações que vamos precisar realizar no projeto
+
+Antes:
+
+https://i.imgur.com/EvInOEf.png
+
+Depois:
+
+https://i.imgur.com/9ewSVkP.png
+
+Depois dessas alterações vamos precisar alterar o forms app/views/comments/_form.html.erb.
+
+Antes:
+https://i.imgur.com/FHMGQoE.png
+
+Depois:
+
+https://i.imgur.com/MK1UJxp.png
+
+Perceba que ainda não está funcionando a pagina, e ao tentar abrir ele apresentará um 
+erro, devido ele tentar carregar o show que não existe.
+
+https://i.imgur.com/I40a04N.png
+
+Para resolver isso vamos precisar editar o arquivo post_controller, no metodo show.
+antes
+https://i.imgur.com/OPDkRbc.png
+
+Depois
+https://i.imgur.com/BTpcicK.png
+
+Vamos também precisar alterar alguns dados do form do que foi aproveitado.
+
+https://i.imgur.com/R9th7US.png
+
+https://i.imgur.com/iLp9boS.png
+
+também vamos precisar alterar o controller comments novamente. 
+
+https://i.imgur.com/dCIrKPc.png
+
+
+Percebemos alguns erros devido um engano, vamos editar novamente o controller do comments
+
+depois dos ajustes o projeto funcionou conforme o esperado.
+
+
+                ____                                             
+               / ___|  ___  __ _ _   _ _ __ __ _ _ __   ___ __ _ 
+               \___ \ / _ \/ _` | | | | '__/ _` | '_ \ / __/ _` |
+                ___) |  __/ (_| | |_| | | | (_| | | | | (_| (_| |
+               |____/ \___|\__, |\__,_|_|  \__,_|_| |_|\___\__,_|
+                           |___/                                 
+
+Nessa aula vamos precisar criar o arquivo application.yml com essas informações:
+
+https://i.imgur.com/ffZm3Cs.png
+
+Obs: Esse arquivo application deve ser adicionado no gitinorer, e para o repositório
+deve ser criado um arquivo chamado de .example que vai ser enviado ao git
+
+depois vamos precisar alterar algumas informações do arquivo database.yml
+
+https://i.imgur.com/IVsTToh.png
+
+
+
+Para rodar a docker e eliminar ela ao finalizar.
+$ dc run --rm web rails -c 
+
+
+https://i.imgur.com/sL3qttI.png
+
+para deletar a base de dados usamos o seguinte comando:
+
+dc run --rm web rails db:drop
+
+para criar a base de dados
+
+dc run --rm web rails db:create
